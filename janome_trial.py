@@ -12,8 +12,8 @@ sentences = [
 
 tokenizer = Tokenizer()
 
-for sentence in sentences:
-    print(f"\n文: {sentence}")
+for number, sentence in enumerate(sentences, start=1):
+    print(f"\n【{number}文目】{sentence}")
     print("単語\t品詞")
     for token in tokenizer.tokenize(sentence):
         print(f"{token.surface}\t{token.part_of_speech}")
