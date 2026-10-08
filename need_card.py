@@ -77,13 +77,14 @@ def load_cue_rules(path: Path) -> list[CueRule]:
 
 
 def find_cue_matches(
-    tokens: list[str], rules: list[CueRule]
+    base_forms: list[str], surfaces: list[str], rules: list[CueRule]
 ) -> list[CueMatch]:
+    # 照合は基本形（出かけ→出かける）で行い、根拠には入力どおりの表層形を使う
     raw_matches = []
-    for start in range(len(tokens)):
+    for start in range(len(base_forms)):
         for rule in rules:
             end = start + len(rule.pattern)
-            if tuple(tokens[start:end]) == rule.pattern:
+            if tuple(base_forms[start:end]) == rule.pattern:
                 raw_matches.append((rule, start, end))
 
     conjunction_ends = sorted(
@@ -100,7 +101,7 @@ def find_cue_matches(
         matches.append(
             CueMatch(
                 rule=rule,
-                surface="".join(tokens[start:end]),
+                surface="".join(surfaces[start:end]),
                 start=start,
                 end=end,
                 segment=segment,
@@ -118,8 +119,10 @@ def make_need_card(sentence: str, rules: list[CueRule]) -> dict[str, object]:
     if distress_match is not None:
         return {"status": "support", "message": SUPPORT_MESSAGE}
 
-    tokens = [token.surface for token in Tokenizer().tokenize(sentence)]
-    matches = find_cue_matches(tokens, rules)
+    tokens = list(Tokenizer().tokenize(sentence))
+    base_forms = [token.base_form for token in tokens]
+    surfaces = [token.surface for token in tokens]
+    matches = find_cue_matches(base_forms, surfaces, rules)
     cues_by_axis: dict[str, list[AxisCue]] = {
         axis: [] for axis in AXIS_OPTIONS
     }
