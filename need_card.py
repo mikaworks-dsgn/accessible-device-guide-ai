@@ -11,7 +11,12 @@ AXIS_OPTIONS = {
     "人との関わり": ["一人で", "どちらでも", "誰かと"],
 }
 
-DISTRESS_PHRASES = ("死にたい", "消えたい", "いなくなりたい")
+# 手がかりがないときの既定値。具体的にやりたいことがあれば人はそれを言うはずなので、
+# 具体性について何も言っていないこと自体を「低い」の手がかりとみなす
+DEFAULT_VALUES = {"具体性": "低い"}
+NO_CUE_NOTE = "（手がかりなし）"
+
+DISTRESS_PHRASES =("死にたい", "消えたい", "いなくなりたい")
 SUPPORT_MESSAGE = (
     "つらい気持ちを話せる窓口があります。厚生労働省の"
     "『まもろうよ こころ』（https://www.mhlw.go.jp/mamorouyokokoro/）で、"
@@ -80,12 +85,32 @@ def find_cue_matches(
     base_forms: list[str], surfaces: list[str], rules: list[CueRule]
 ) -> list[CueMatch]:
     # 照合は基本形（出かけ→出かける）で行い、根拠には入力どおりの表層形を使う
+    # 左から最長一致で照合し、一致した並びの内側は照合しない（「何でもいい」の「でも」など）
+    # 同じ長さで一致した行はすべて残す（「退屈」は方向と具体性の両方）
+    # janomeが基本形を誤ることがあるため（文末の「いい」→「いう」）、表層形との一致も認める
+    def matches_at(rule: CueRule, start: int) -> bool:
+        end = start + len(rule.pattern)
+        if end > len(base_forms):
+            return False
+        return all(
+            word in (base_forms[index], surfaces[index])
+            for index, word in zip(range(start, end), rule.pattern)
+        )
+
     raw_matches = []
-    for start in range(len(base_forms)):
-        for rule in rules:
-            end = start + len(rule.pattern)
-            if tuple(base_forms[start:end]) == rule.pattern:
+    start = 0
+    while start < len(base_forms):
+        hits = [rule for rule in rules if matches_at(rule, start)]
+        if not hits:
+            start += 1
+            continue
+
+        longest = max(len(rule.pattern) for rule in hits)
+        end = start + longest
+        for rule in hits:
+            if len(rule.pattern) == longest:
                 raw_matches.append((rule, start, end))
+        start = end
 
     conjunction_ends = sorted(
         {
@@ -174,6 +199,8 @@ def make_need_card(sentence: str, rules: list[CueRule]) -> dict[str, object]:
                 "value": selected.value,
                 "evidence": selected.evidence,
             }
+        elif axis in DEFAULT_VALUES:
+            axes[axis] = {"value": DEFAULT_VALUES[axis], "evidence": [NO_CUE_NOTE]}
         else:
             axes[axis] = {"value": "不明", "evidence": []}
 
