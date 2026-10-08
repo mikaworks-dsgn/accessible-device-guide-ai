@@ -1,3 +1,4 @@
+import argparse
 import csv
 from pathlib import Path
 
@@ -5,8 +6,7 @@ from need_card import AXIS_OPTIONS, load_cue_rules, make_need_card
 
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
-EVAL_PATH = DATA_DIR / "eval_sentences.csv"
-RESULT_PATH = DATA_DIR / "eval_result.csv"
+DEFAULT_EVAL_PATH = DATA_DIR / "eval_sentences.csv"
 DICTIONARY_PATH = DATA_DIR / "cue_dictionary.csv"
 
 AXES = list(AXIS_OPTIONS)
@@ -101,16 +101,33 @@ def save_results(results: list[dict[str, object]], path: Path) -> None:
             writer.writerow(row)
 
 
+def result_path_for(eval_path: Path) -> Path:
+    # eval_sentences.csv → eval_result.csv、holdout_sentences.csv → holdout_result.csv
+    name = eval_path.stem.removesuffix("_sentences")
+    return eval_path.with_name(f"{name}_result.csv")
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser(description="ニーズカードの判定を正解と比べる")
+    parser.add_argument(
+        "eval_path",
+        nargs="?",
+        type=Path,
+        default=DEFAULT_EVAL_PATH,
+        help="評価に使うCSV（省略すると data/eval_sentences.csv）",
+    )
+    args = parser.parse_args()
+    result_path = result_path_for(args.eval_path)
+
     rules = load_cue_rules(DICTIONARY_PATH)
-    rows = load_eval_sentences(EVAL_PATH)
+    rows = load_eval_sentences(args.eval_path)
     results = [evaluate_sentence(row, rules) for row in rows]
 
-    print(f"評価した文: {len(results)}文\n")
+    print(f"評価したファイル: {args.eval_path.name}（{len(results)}文）\n")
     print_summary(results)
     print_mismatches(results)
-    save_results(results, RESULT_PATH)
-    print(f"\n結果を保存しました: {RESULT_PATH.relative_to(RESULT_PATH.parents[1])}")
+    save_results(results, result_path)
+    print(f"\n結果を保存しました: {result_path.name}")
 
 
 if __name__ == "__main__":
